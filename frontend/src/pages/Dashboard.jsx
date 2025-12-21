@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
 
 import { format, isPast, isToday, isSameDay } from 'date-fns';
@@ -107,7 +107,7 @@ const Dashboard = ({ isDark }) => {
     // Fetch tasks
     const fetchTasks = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/tasks');
+            const res = await api.get('/api/tasks');
             setTasks(res.data);
         } catch (err) { console.error(err); }
     };
@@ -116,14 +116,14 @@ const Dashboard = ({ isDark }) => {
     // Form handlers
     const handleSubmit = async (e) => {
         e.preventDefault();
-        await axios.post('http://localhost:5000/api/tasks', form);
+        await api.post('/api/tasks', form);
         setForm({ title: '', priority: 'Medium', deadline: '', estimatedTime: '' });
         setIsFormOpen(false);
         fetchTasks();
     };
 
     const handleDelete = async (id) => {
-        await axios.delete(`http://localhost:5000/api/tasks/${id}`);
+        await api.delete(`/api/tasks/${id}`);
         fetchTasks();
     };
 
@@ -131,7 +131,7 @@ const Dashboard = ({ isDark }) => {
         // Optimistic update
         const updatedTasks = tasks.map(t => t._id === task._id ? { ...t, completed: !t.completed } : t);
         setTasks(updatedTasks);
-        await axios.put(`http://localhost:5000/api/tasks/${task._id}`, { completed: !task.completed });
+        await api.put(`/api/tasks/${task._id}`, { completed: !task.completed });
         fetchTasks(); // Re-fetch to ensure sync
     };
 
@@ -139,7 +139,7 @@ const Dashboard = ({ isDark }) => {
          // Optimistic update
          const updatedTasks = tasks.map(t => t._id === task._id ? { ...t, isPinned: !t.isPinned } : t);
          setTasks(updatedTasks);
-         await axios.put(`http://localhost:5000/api/tasks/${task._id}`, { isPinned: !task.isPinned });
+         await api.put(`/api/tasks/${task._id}`, { isPinned: !task.isPinned });
          fetchTasks();
     };
 
