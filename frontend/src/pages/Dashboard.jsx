@@ -1,8 +1,10 @@
 import { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
-import { format, isPast, isToday } from 'date-fns';
+
+import { format, isPast, isToday, isSameDay } from 'date-fns';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
+
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { 
@@ -61,6 +63,11 @@ const TaskCard = ({ task, priorityStyles, toggleComplete, handleDelete, togglePi
                             <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md border ${priorityStyles[task.priority]}`}>
                                 {task.priority}
                             </span>
+                            {task.estimatedTime && (
+                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md border ${isDark ? 'bg-gray-700 border-gray-600 text-gray-300' : 'bg-gray-100 border-gray-200 text-gray-600'}`}>
+                                    ⏱️ {task.estimatedTime}
+                                </span>
+                            )}
                             {getDeadlineBadge(task.deadline)}
                         </div>
                     </div>
@@ -90,10 +97,11 @@ const TaskCard = ({ task, priorityStyles, toggleComplete, handleDelete, togglePi
 const Dashboard = ({ isDark }) => {
     const { user } = useContext(AuthContext);
     const [tasks, setTasks] = useState([]);
-    const [form, setForm] = useState({ title: '', priority: 'Medium', deadline: '' });
+    const [form, setForm] = useState({ title: '', priority: 'Medium', deadline: '', estimatedTime: '' });
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [view, setView] = useState('board'); // 'list' or 'board'
     const [search, setSearch] = useState('');
+    const [filterDate, setFilterDate] = useState(''); // New date filter state
     const [activeId, setActiveId] = useState(null); // For Drag Overlay
 
     // Fetch tasks
@@ -109,7 +117,7 @@ const Dashboard = ({ isDark }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         await axios.post('http://localhost:5000/api/tasks', form);
-        setForm({ title: '', priority: 'Medium', deadline: '' });
+        setForm({ title: '', priority: 'Medium', deadline: '', estimatedTime: '' });
         setIsFormOpen(false);
         fetchTasks();
     };
@@ -196,9 +204,11 @@ const Dashboard = ({ isDark }) => {
     });
 
     // Filter Logic
-    const filteredTasks = sortedTasks.filter(t => 
-        t.title.toLowerCase().includes(search.toLowerCase())
-    );
+    const filteredTasks = sortedTasks.filter(t => {
+        const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase());
+        const matchesDate = filterDate ? (t.deadline && isSameDay(new Date(t.deadline), new Date(filterDate))) : true;
+        return matchesSearch && matchesDate;
+    });
 
     const pendingTasks = filteredTasks.filter(t => !t.completed);
     const completedTasks = filteredTasks.filter(t => t.completed);
@@ -302,6 +312,15 @@ const Dashboard = ({ isDark }) => {
                                 className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500 ${isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900'}`}
                             />
                         </div>
+                        <input 
+                            type="text"
+                            placeholder="Select Date"
+                            onFocus={(e) => (e.target.type = "date")}
+                            onBlur={(e) => { if (!e.target.value) e.target.type = "text"; }}
+                            value={filterDate}
+                            onChange={(e) => setFilterDate(e.target.value)}
+                            className={`px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[150px] ${isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 text-gray-900'}`}
+                        />
                         <button 
                             onClick={() => setIsFormOpen(!isFormOpen)}
                             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg shadow-indigo-500/20 transition-all"
@@ -335,6 +354,13 @@ const Dashboard = ({ isDark }) => {
                                     className={`p-3 rounded-xl border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'}`}
                                     value={form.deadline} 
                                     onChange={e => setForm({...form, deadline: e.target.value})} 
+                                />
+                                <input 
+                                    type="text" 
+                                    placeholder="Est. Time (e.g. 2h)" 
+                                    className={`p-3 rounded-xl border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'}`}
+                                    value={form.estimatedTime} 
+                                    onChange={e => setForm({...form, estimatedTime: e.target.value})} 
                                 />
                                 <button type="submit" className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700">Add</button>
                             </div>
