@@ -9,8 +9,9 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { CSS } from '@dnd-kit/utilities';
 import { 
     LayoutGrid, List as ListIcon, Plus, Calendar, CheckCircle2, 
-    Circle, Trash2, Search, Filter, MoreVertical, Pin 
+    Circle, Trash2, Search, Filter, MoreVertical, Pin, BarChart3 
 } from 'lucide-react';
+import Analytics from '../components/Analytics';
 
 // Draggable Task Card
 const TaskCard = ({ task, priorityStyles, toggleComplete, handleDelete, togglePin, isDark }) => {
@@ -97,8 +98,9 @@ const TaskCard = ({ task, priorityStyles, toggleComplete, handleDelete, togglePi
 const Dashboard = ({ isDark }) => {
     const { user } = useContext(AuthContext);
     const [tasks, setTasks] = useState([]);
-    const [form, setForm] = useState({ title: '', priority: 'Medium', deadline: '', estimatedTime: '' });
+    const [form, setForm] = useState({ title: '', priority: 'Medium', deadline: '', estimatedTime: '', recurrence: 'none' });
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [showAnalytics, setShowAnalytics] = useState(false);
     const [view, setView] = useState('board'); // 'list' or 'board'
     const [search, setSearch] = useState('');
     const [filterDate, setFilterDate] = useState(''); // New date filter state
@@ -117,7 +119,7 @@ const Dashboard = ({ isDark }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         await api.post('/api/tasks', form);
-        setForm({ title: '', priority: 'Medium', deadline: '', estimatedTime: '' });
+        setForm({ title: '', priority: 'Medium', deadline: '', estimatedTime: '', recurrence: 'none' });
         setIsFormOpen(false);
         fetchTasks();
     };
@@ -160,14 +162,24 @@ const Dashboard = ({ isDark }) => {
         if (!over) return;
 
         const activeTask = tasks.find(t => t._id === active.id);
-        const overContainer = over.id; // 'pending' or 'completed'
+        if (!activeTask) return;
 
-        if (activeTask) {
-            const isCompletedContainer = overContainer === 'completed';
-            // Only update if the container status differs from task status
-            if (activeTask.completed !== isCompletedContainer) {
-                await toggleComplete(activeTask);
-            }
+        // Determine drop container
+        let overContainer = over.id;
+        
+        // If sorting (dropped over another task), resolve the container from that task
+        const overTask = tasks.find(t => t._id === over.id);
+        if (overTask) {
+            overContainer = overTask.completed ? 'completed' : 'pending';
+        }
+
+        const isCompletedContainer = overContainer === 'completed';
+        
+        // Only update if the container status differs from task status
+        if (activeTask.completed !== isCompletedContainer) {
+            await toggleComplete(activeTask);
+            // Note: Reordering logic within the same container is handled by the SortableContext visually, 
+            // but we aren't persisting order in DB currently.
         }
     };
 
@@ -260,7 +272,7 @@ const Dashboard = ({ isDark }) => {
 
     return (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div className={`min-h-screen pt-4 pb-12 transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50/50'}`}>
+            <div className={`min-h-screen pt-24 pb-12 transition-colors duration-300 ${isDark ? 'bg-gray-900' : 'bg-gray-50/50'}`}>
                 {/* Header Section */}
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
@@ -271,17 +283,35 @@ const Dashboard = ({ isDark }) => {
                             </p>
                         </div>
 
-                        <div className="flex items-center gap-3 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700">
-                            <button onClick={() => setView('board')} className={`p-2 rounded-lg transition-all ${view === 'board' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'text-gray-400 hover:text-gray-600'}`}>
-                                <LayoutGrid size={20} />
+                        <div className="flex items-center p-1.5 rounded-xl border border-gray-200 shadow-sm dark:bg-gray-800 dark:border-gray-700 bg-white">
+                            <button onClick={() => setView('board')} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${view === 'board' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
+                                <LayoutGrid size={18} />
+                                Board
                             </button>
-                            <button onClick={() => setView('list')} className={`p-2 rounded-lg transition-all ${view === 'list' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'text-gray-400 hover:text-gray-600'}`}>
-                                <ListIcon size={20} />
+                            <button onClick={() => setView('list')} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${view === 'list' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
+                                <ListIcon size={18} />
+                                List
+                            </button>
+                            <button onClick={() => setShowAnalytics(!showAnalytics)} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${showAnalytics ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
+                                <BarChart3 size={18} />
+                                Analytics
                             </button>
                         </div>
                     </div>
 
+                    {/* Analytics Section */}
+                    {showAnalytics && (
+                        <div className="mb-8 p-6 rounded-2xl border bg-white dark:bg-gray-800 dark:border-gray-700 shadow-sm animate-in slide-in-from-top-4">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Productivity Analytics</h2>
+                                <button onClick={() => setShowAnalytics(false)} className={`text-sm hover:underline ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Close</button>
+                            </div>
+                            <Analytics isDark={isDark} tasks={tasks} />
+                        </div>
+                    )}
+
                     {/* Stats */}
+                    {!showAnalytics && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                         {[
                             { label: 'Total Tasks', value: tasks.length, icon: LayoutGrid, color: 'text-indigo-600', bg: 'bg-indigo-50' },
@@ -299,6 +329,7 @@ const Dashboard = ({ isDark }) => {
                             </div>
                         ))}
                     </div>
+                    )}
 
                     {/* Controls & Search */}
                     <div className="flex flex-col md:flex-row gap-4 mb-8">
@@ -329,6 +360,7 @@ const Dashboard = ({ isDark }) => {
                             New Task
                         </button>
                     </div>
+
 
                     {/* New Task Form */}
                     {isFormOpen && (
@@ -362,6 +394,15 @@ const Dashboard = ({ isDark }) => {
                                     value={form.estimatedTime} 
                                     onChange={e => setForm({...form, estimatedTime: e.target.value})} 
                                 />
+                                <select 
+                                    className={`p-3 rounded-xl border ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'}`}
+                                    value={form.recurrence} 
+                                    onChange={e => setForm({...form, recurrence: e.target.value})}
+                                >
+                                    <option value="none">No Repeat</option>
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                </select>
                                 <button type="submit" className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700">Add</button>
                             </div>
                         </form>
