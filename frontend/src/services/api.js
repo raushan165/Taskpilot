@@ -37,8 +37,10 @@
 // src/services/api.js
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api/auth';
-const CONTACT_URL = 'http://localhost:5000/api/contact';
+// Use environment variable if available, otherwise localhost
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = `${BASE_URL}/api/auth`;
+const CONTACT_URL = `${BASE_URL}/api/contact`;
 
 export const login = async (email, password) => {
   return await axios.post(`${API_URL}/login`, { email, password });

@@ -1,6 +1,7 @@
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
 
 // Simplified SplitText component
 const SplitText = ({ text, className = '', delay = 0, tag = 'h1', isDark }) => {
@@ -265,6 +266,7 @@ const TechCard = ({ name, desc, isDark, delay, icon }) => {
 // Main About Component
 const About = ({ isDark = false }) => {
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   const [ref1, isVisible1] = useScrollAnimation();
   const [ref2, isVisible2] = useScrollAnimation();
   const [ref3, isVisible3] = useScrollAnimation();
@@ -475,10 +477,10 @@ const About = ({ isDark = false }) => {
             Join thousands of users who have transformed their productivity with TaskMaster.
           </p>
           <button 
-            onClick={() => navigate('/login')}
+            onClick={() => user ? navigate('/dashboard') : navigate('/login')}
             className="group inline-flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-lg font-semibold transition-all duration-300 hover:scale-105 hover:shadow-2xl"
           >
-            Start Your Journey
+            {user ? 'Go to Dashboard' : 'Start Your Journey'}
             <svg
               className="w-5 h-5 transform group-hover:translate-x-1 transition-transform"
               fill="none"

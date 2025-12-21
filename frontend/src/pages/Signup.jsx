@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import { signup, verifySignup, googleLogin as googleLoginAPI } from '../services/api';
+import { AuthContext } from '../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
 
 // Animated Text Component
 const AnimatedText = ({ text, delay = 0, isDark }) => {
@@ -35,6 +37,7 @@ const AnimatedText = ({ text, delay = 0, isDark }) => {
 
 const Signup = ({ isDark }) => {
   const navigate = useNavigate();
+  const { setAuth } = useContext(AuthContext);
 
   // steps: 1 = name+email -> send OTP, 2 = OTP+password -> verify
   const [step, setStep] = useState(1);
@@ -43,12 +46,13 @@ const Signup = ({ isDark }) => {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({ name: '', email: '', otp: '', password: '' });
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
   // STEP 1: call backend /signup to send OTP
   const handleSendOtp = async (e) => {
@@ -58,11 +62,8 @@ const Signup = ({ isDark }) => {
     setMessage('');
 
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/signup', {
-        name,          // backend ignores name now but safe to send
-        email,
-      });
-      setMessage(res.data.message || 'OTP sent to your email!');
+      const res = await signup(formData.name, formData.email);
+      setMessage(res.message || 'OTP sent to your email!');
       setStep(2);
     } catch (err) {
       setError(
@@ -80,19 +81,14 @@ const Signup = ({ isDark }) => {
     setError('');
     setMessage('');
 
-    if (password !== confirmPassword) {
+    if (formData.password !== confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
       return;
     }
 
     try {
-      await axios.post('http://localhost:5000/api/auth/verify-signup', {
-        name,
-        email,
-        otp,
-        password,
-      });
+      const res = await verifySignup(formData.name, formData.email, formData.otp, formData.password);
 
       setMessage('Registration successful! Redirecting to login...');
       setTimeout(() => {
@@ -179,7 +175,7 @@ const Signup = ({ isDark }) => {
                 {step === 1 ? 'Create Account' : 'Verify & Set Password'}
               </h2>
               <p style={{ color: isDark ? '#9CA3AF' : '#6B7280' }}>
-                {step === 1 ? 'Join TaskMaster today' : `OTP sent to ${email}`}
+                {step === 1 ? 'Join TaskMaster today' : `OTP sent to ${formData.email}`}
               </p>
             </div>
 
@@ -224,8 +220,9 @@ const Signup = ({ isDark }) => {
                   </label>
                   <input
                     type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
                     required
                     className="w-full px-4 py-3 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2"
                     style={{
@@ -248,8 +245,9 @@ const Signup = ({ isDark }) => {
                   </label>
                   <input
                     type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
                     required
                     className="w-full px-4 py-3 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2"
                     style={{
@@ -287,8 +285,9 @@ const Signup = ({ isDark }) => {
                   </label>
                   <input
                     type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
+                    name="otp"
+                    value={formData.otp}
+                    onChange={handleChange}
                     maxLength={6}
                     required
                     className="w-full px-4 py-3 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 text-center tracking-widest text-2xl"
@@ -313,8 +312,9 @@ const Signup = ({ isDark }) => {
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
                       required
                       className="w-full px-4 py-3 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2"
                       style={{
@@ -371,7 +371,7 @@ const Signup = ({ isDark }) => {
                     boxShadow: '0 10px 25px rgba(79, 70, 229, 0.3)',
                   }}
                 >
-                  {loading ? 'Verifying...' : 'Complete Registration'}
+                  {loading ? 'Verifying...' : 'Verify & Signup'}
                 </button>
 
                 <button
@@ -383,6 +383,55 @@ const Signup = ({ isDark }) => {
                   ← Change Email
                 </button>
               </form>
+            )}
+
+            {/* Social Signup Divider - Only show in Step 1 */}
+            {step === 1 && (
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div
+                      className="w-full border-t"
+                      style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
+                    ></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span
+                      className="px-2"
+                      style={{
+                        backgroundColor: isDark ? '#1F2937' : '#FFFFFF', // Adjust bg to match container if needed, using simple solid for now
+                        color: isDark ? '#9CA3AF' : '#6B7280'
+                      }}
+                    >
+                      Or continue with
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-center mb-6">
+                  <GoogleLogin
+                    onSuccess={async (credentialResponse) => {
+                      try {
+                        const res = await googleLoginAPI(credentialResponse.credential);
+                        if (setAuth) {
+                          setAuth(res.token, res.user);
+                        }
+                        navigate('/dashboard');
+                      } catch (err) {
+                        console.error("Google Signup Failed", err);
+                        setError("Google Signup Failed: " + (err.response?.data?.message || err.message));
+                      }
+                    }}
+                    onError={() => {
+                      console.log('Signup Failed');
+                      setError("Google Signup Failed");
+                    }}
+                    theme={isDark ? 'filled_black' : 'outline'}
+                    shape="pill"
+                    text="signup_with"
+                  />
+                </div>
+              </>
             )}
 
             <div className="mt-6 text-center">
